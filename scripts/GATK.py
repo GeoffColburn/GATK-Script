@@ -99,13 +99,13 @@ class picard_tools:
     
     @staticmethod
     def add_or_replace_read_groups(input_path, output_path):
-        cmd = "java -jar {} I={} O={} LB=FOO PL=ILLUMINA PU=BAR SM=NEE".format(picard_tools._ADD_OR_REPLACE_READ_GROUPS, input_path, output_path)
+        cmd = "java -jar {} I={} O={}  SORT_ORDER=coordinate LB=FOO PL=ILLUMINA PU=BAR SM=NEE".format(picard_tools._ADD_OR_REPLACE_READ_GROUPS, input_path, output_path)
         common.system(cmd) 
         common.assert_file(output_path, cmd)
         return output_path
 
     @staticmethod
-    def sort_bam(aln_path, output_aln_path, sort_option = "coordinate"):
+    def sort_sam(aln_path, output_aln_path, sort_option = "coordinate"):
         cmd = "java -jar {} INPUT={} OUTPUT={} SORT_ORDER={}".format(picard_tools._SORT_SAM, aln_path, output_aln_path, sort_option)
         common.system(cmd)
         common.assert_file(output_aln_path, cmd)
@@ -113,7 +113,7 @@ class picard_tools:
 
 
 class gatk:
-    prefix = "java -jar {} -T ".format("~/local/share/gatk/GenomeAnalysisTK.jar")
+    prefix = "java -Xmx2g -jar {} -T ".format("~/local/share/gatk/GenomeAnalysisTK.jar")
 
     @staticmethod
     def realigner_target_creator(intervals, fasta, bam):
@@ -123,7 +123,7 @@ class gatk:
 
     @staticmethod
     def indel_realigner(ref_path, bam_path, realigned_bam_path, intervals_path):
-        cmd = gatk.prefix + "-T IndelRealigner \
+        cmd = gatk.prefix + "IndelRealigner \
               -R {} \
               -I {} \
               -targetIntervals {} \
@@ -134,7 +134,7 @@ class gatk:
 
     @staticmethod
     def unified_genotyper(ref_path, bam_path, output_vcf_path):
-        cmd = gatk.prefix + "-T UnifiedGenotyper \
+        cmd = gatk.prefix + "UnifiedGenotyper \
               -R {} \
               -I {} \
               -o {} \
@@ -169,11 +169,11 @@ def do_bwa(ref_paths, read_paths, output_dir, pair_ended):
             common.system("bwa aln -f {} {} {}".format(index, fasta_path, read))
 
         #Create alignment file.
-        sam_path = fasta_path.replace(".fasta", ".sam")
+        sam_path = os.path.join(output_dir, "reference.sam")
         if pair_ended == True:
             common.system("bwa sampe -f {} {} {} {}".format(sam_path, fasta_path, " ".join(index_paths), " ".join(read_paths)))
         else:
-            common.system("bwa samse {} {} {}".format(" ".join(index_paths), " ".join(read_paths), sam_path))
+            common.system("bwa samse -f {} {} {} {}".format(sam_path, fasta_path, " ".join(index_paths), " ".join(read_paths)))
 
 
         p.dump((fasta_path, sam_path), open(done_file, 'w'))
@@ -204,7 +204,7 @@ def do_bowtie(ref_paths, read_paths, output_dir, pair_ended):
         common.system("bowtie-build {} {}".format(fasta_path, prefix))
 
         #Create alignment file.
-        sam_path = fasta_path.replace(".fasta", ".sam")
+        sam_path = os.path.join(output_dir, "reference.sam")
         fastq_ = ""
         if pair_ended == True:
             """ 
@@ -246,16 +246,11 @@ def do_gatk(args):
     bam = os.path.join(output_dir, os.path.basename(sam.replace(".sam", ".bam")))
     samtools.sam2bam(sam, bam)
 
-    #Sort
-    sorted_bam = os.path.join(output_dir, "sorted.bam")
-    picard_tools.sort_bam(bam, sorted_bam)
-    bam = sorted_bam
-
     #MarkDuplicates
-    metrics_path = os.path.join(output_dir, "metrics.txt")
-    MD_bam = os.path.join(output_dir, "MD.bam")
-    picard_tools.mark_duplicates(bam, MD_bam, metrics_path)
-    bam = MD_bam
+    dedup_metrics_path = os.path.join(output_dir, "dedup.metrics")
+    dedup_bam = os.path.join(output_dir, "dedup.bam")
+    picard_tools.mark_duplicates(bam, dedup_bam, dedup_metrics_path)
+    bam = dedup_bam
 
     #Index
     samtools.index(bam)
