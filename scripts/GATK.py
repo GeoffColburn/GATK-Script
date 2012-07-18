@@ -119,7 +119,6 @@ class gatk:
     def realigner_target_creator(intervals, fasta, bam):
         cmd = gatk.prefix + "RealignerTargetCreator -R {} -I {} -o {}".format(fasta, bam, intervals)
         common.system(cmd)
-        common.assert_file(intervals, cmd)
         return intervals
 
     @staticmethod
@@ -140,7 +139,7 @@ class gatk:
               -I {} \
               -o {} \
               -l INFO \
-              -glm BOTH".format(gatk._GENOME_ANALYSIS_TK, ref_path, bam_path, output_vcf_path)
+              -glm BOTH".format(ref_path, bam_path, output_vcf_path)
         common.system(cmd)
         common.assert_file(output_vcf_path, cmd)
         return output_vcf_path
@@ -176,15 +175,14 @@ def do_bwa(ref_paths, read_paths, output_dir, pair_ended):
         else:
             common.system("bwa samse {} {} {}".format(" ".join(index_paths), " ".join(read_paths), sam_path))
 
-        print >> sys.stderr, "BWA End."
-        print >> sys.stderr, "\tReference file:", fasta_path
-        print >> sys.stderr, "\tAlignment file:", sam_path
 
         p.dump((fasta_path, sam_path), open(done_file, 'w'))
     else:
         fasta_path, sam_path = p.load(open(done_file, 'r'))
 
-
+    print >> sys.stderr, "BWA End."
+    print >> sys.stderr, "\tReference file:", fasta_path
+    print >> sys.stderr, "\tAlignment file:", sam_path
     return (fasta_path, sam_path)
 
 
@@ -219,13 +217,13 @@ def do_bowtie(ref_paths, read_paths, output_dir, pair_ended):
 
         common.system("bowtie -t --sam {} {} {}".format(prefix, fastq_, sam_path))
 
-        print >> sys.stderr, "Bowtie End."
-        print >> sys.stderr, "\tReference file:", fasta_path
-        print >> sys.stderr, "\tAlignment file:", sam_path
         p.dump((fasta_path, sam_path), open(done_file, 'w'))
     else:
         fasta_path, sam_path = p.load(open(done_file, 'r'))
 
+    print >> sys.stderr, "Bowtie End."
+    print >> sys.stderr, "\tReference file:", fasta_path
+    print >> sys.stderr, "\tAlignment file:", sam_path
     return (fasta_path, sam_path)
 
 
@@ -239,12 +237,12 @@ def do_gatk(args):
     elif mapper == "bwa":
         fasta, sam = do_bwa(args.ref_paths, args.read_paths, args.output_dir, args.pair_ended)
 
-    #Add read groups.
+    #Add read groups
     RG_sam = os.path.join(output_dir, "RG.sam")
     picard_tools.add_or_replace_read_groups(sam, RG_sam)
     sam = RG_sam
 
-    #Convert to bam.
+    #Convert to bam
     bam = os.path.join(output_dir, os.path.basename(sam.replace(".sam", ".bam")))
     samtools.sam2bam(sam, bam)
 
@@ -275,10 +273,25 @@ def do_gatk(args):
     vcf_path = os.path.join(output_dir, "output.vcf")
     gatk.unified_genotyper(fasta, bam, vcf_path)
 
+    print >> sys.stderr, "GATK created : " + vcf_path
+    print >> sys.stderr, "Suggested filters for SNPs:"
+    print >> sys.stderr, "\tQD < 2.0"
+    print >> sys.stderr, "\tMQ < 40.0"
+    print >> sys.stderr, "\tFS > 60.0"
+    print >> sys.stderr, "\tHaplotypeScore > 13.0"
+    print >> sys.stderr, "\tMQRankSum < -12.5"
+    print >> sys.stderr, "\tReadPosRankSum < -8.0"
+    print >> sys.stderr, ""
+    print >> sys.stderr, "Suggested filters for INDELs:"
+    print >> sys.stderr, "\tQD < 2.0"
+    print >> sys.stderr, "\tReadPosRankSum < -20.0"
+    print >> sys.stderr, "\tInbreedingCoeff < -0.8"
+    print >> sys.stderr, "\tFS > 200.0"
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-r", action = "append", dest = "ref_paths", help = "GBK format" required = True)
+    parser.add_argument("-r", action = "append", dest = "ref_paths", help = "GBK format", required = True)
     parser.add_argument("-o", dest = "output_dir", default = "gatk")
     parser.add_argument("--pe", action = "store_true", dest = "pair_ended", default = False)
     parser.add_argument("--mapper", dest = "mapper", default = "bowtie", choices = ["bwa", "bowtie"])
