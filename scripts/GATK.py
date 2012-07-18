@@ -289,7 +289,7 @@ def main():
     parser.add_argument("-r", action = "append", dest = "ref_paths", help = "GBK format", required = True)
     parser.add_argument("-o", dest = "output_dir", default = "gatk")
     parser.add_argument("--pe", action = "store_true", dest = "pair_ended", default = False)
-    parser.add_argument("--mapper", dest = "mapper", default = "bowtie", choices = ["bwa", "bowtie"])
+    parser.add_argument("--mapper", dest = "mapper", default = "bwa", choices = ["bwa", "bowtie"])
     parser.add_argument("read_paths", nargs = '+')
     parser.set_defaults(func = do_gatk)
 
